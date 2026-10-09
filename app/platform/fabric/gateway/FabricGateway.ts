@@ -336,9 +336,21 @@ export class FabricGateway {
 	async queryInstantiatedChaincodes(channelName) {
 		logger.info('queryInstantiatedChaincodes', channelName);
 		const network = await this.gateway.getNetwork(channelName);
-		let contract = network.getContract('lscc');
-		let result = await contract.evaluateTransaction('GetChaincodes');
-		let resultJson = fabprotos.protos.ChaincodeQueryResponse.decode(result);
+		let contract;
+		let result;
+		let resultJson: any = { chaincodes: [], toJSON: null };
+		// Fabric 3 removed the legacy lifecycle system chaincode (lscc): the query fails
+		// instead of returning an empty list, so fall back to _lifecycle on error as well.
+		try {
+			contract = network.getContract('lscc');
+			result = await contract.evaluateTransaction('GetChaincodes');
+			resultJson = fabprotos.protos.ChaincodeQueryResponse.decode(result);
+		} catch (error) {
+			logger.info(
+				'lscc is not available (Fabric 3?), using _lifecycle:',
+				(error as Error).message
+			);
+		}
 		if (resultJson.chaincodes.length <= 0) {
 			resultJson = { chaincodes: [], toJSON: null };
 			contract = network.getContract('_lifecycle');
